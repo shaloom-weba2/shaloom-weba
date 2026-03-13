@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-cyber-bg: #050505;
+  --color-cyber-card: #0a0a0a;
+  --color-cyber-neon: #00f2ff;
+  --color-cyber-pink: #ff00e5;
+  --color-cyber-green: #00ff41;
+  --color-cyber-border: rgba(0, 242, 255, 0.1);
+}
+
+@layer base {
+  body {
+    @apply bg-cyber-bg text-gray-300 font-sans selection:bg-cyber-neon selection:text-black;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-white font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .cyber-button {
+    @apply relative px-6 py-2 bg-transparent border border-cyber-neon text-cyber-neon font-mono uppercase tracking-widest overflow-hidden transition-all duration-300 hover:bg-cyber-neon hover:text-black hover:shadow-[0_0_20px_rgba(0,242,255,0.5)];
+  }
+
+  .cyber-card {
+    @apply bg-cyber-card border border-cyber-border p-6 rounded-sm relative overflow-hidden transition-all duration-300 hover:border-cyber-neon/30 hover:shadow-[0_0_30px_rgba(0,242,255,0.05)];
+  }
+
+  .cyber-input {
+    @apply bg-black/50 border border-cyber-border px-4 py-2 text-white font-mono focus:outline-none focus:border-cyber-neon focus:ring-1 focus:ring-cyber-neon/50 transition-all;
+  }
+
+  .neon-text {
+    @apply text-cyber-neon drop-shadow-[0_0_8px_rgba(0,242,255,0.8)];
+  }
+
+  .glitch-effect {
+    @apply relative;
+  }
+
+  .cyber-feature-card {
+    @apply bg-cyber-card border border-cyber-border p-6 rounded-sm relative overflow-hidden transition-all duration-300;
+    animation: shadow-pulse 4s infinite ease-in-out;
+  }
+
+  .cyber-feature-card:hover {
+    @apply border-cyber-neon/50;
+    animation: shadow-pulse-hover 2s infinite ease-in-out;
+  }
+
+  .cyber-shadow-box {
+    @apply bg-cyber-card border border-cyber-border p-8 rounded-sm relative transition-all duration-500 hover:-translate-y-2;
+    box-shadow: 10px 10px 0px rgba(0, 242, 255, 0.1);
+  }
+
+  .cyber-shadow-box:hover {
+    @apply border-cyber-neon/50;
+    box-shadow: 20px 20px 0px rgba(0, 242, 255, 0.2);
+  }
+}
+
+@keyframes shadow-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(0, 242, 255, 0.05); }
+  50% { box-shadow: 0 0 30px rgba(0, 242, 255, 0.15); }
+}
+
+@keyframes shadow-pulse-hover {
+  0%, 100% { box-shadow: 0 0 25px rgba(0, 242, 255, 0.2); }
+  50% { box-shadow: 0 0 50px rgba(0, 242, 255, 0.4); }
+}
+
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 10;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(0, 242, 255, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0.1;
+  position: fixed;
+  bottom: 100%;
+  left: 0;
+  pointer-events: none;
+  animation: scanline 10s linear infinite;
+}
+
+@keyframes scanline {
+  0% { bottom: 100%; }
+  100% { bottom: -100px; }
+}
+
+@keyframes scanline-vertical {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(200%); }
+}
+
+.grid-background {
+  background-image: linear-gradient(rgba(0, 242, 255, 0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 242, 255, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+.dynamic-content h1 { @apply text-3xl mb-6 text-cyber-neon font-mono; }
+.dynamic-content h2 { @apply text-2xl mb-4 text-cyber-neon font-mono; }
+.dynamic-content h3 { @apply text-xl mb-3 text-cyber-neon font-mono; }
+.dynamic-content p { @apply mb-4 leading-relaxed; }
+.dynamic-content ul { @apply list-disc list-inside mb-4 space-y-2; }
+.dynamic-content ol { @apply list-decimal list-inside mb-4 space-y-2; }
+.dynamic-content a { @apply text-cyber-neon hover:underline transition-all; }
+.dynamic-content pre { @apply bg-black/50 p-4 rounded mb-4 font-mono text-sm border border-cyber-neon/20 overflow-x-auto; }
+.dynamic-content code { @apply font-mono text-cyber-neon bg-cyber-neon/10 px-1 rounded; }
+.dynamic-content img { @apply rounded border border-cyber-neon/20 my-6 max-w-full h-auto; }
+.dynamic-content blockquote { @apply border-l-4 border-cyber-neon pl-4 italic my-6 text-gray-400; }
