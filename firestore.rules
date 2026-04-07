@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email.lower() == "shaloomoficial250@gmail.com" ||
+              request.auth.token.email == "shaloomoficial250@gmail.com");
+    }
+
+    // System Data
+    match /system/data {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Messages
+    match /messages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+    
+    // Allow admin to manage everything else just in case
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

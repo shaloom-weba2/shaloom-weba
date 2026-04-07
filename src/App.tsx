@@ -38,9 +38,16 @@ import {
   FileText,
   Eye,
   EyeOff,
-  ExternalLink as ExternalLinkIcon
+  ExternalLink as ExternalLinkIcon,
+  LogIn,
+  Database,
+  RefreshCw
 } from "lucide-react";
 
+import { auth, loginWithGoogle, loginWithEmail, logout, db } from "./firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { onSnapshot, doc } from "firebase/firestore";
+import { portfolioService } from "./services/portfolioService";
 const WhatsAppIcon = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
   <svg 
     viewBox="0 0 24 24" 
@@ -53,19 +60,15 @@ const WhatsAppIcon = ({ size = 20, className = "" }: { size?: number, className?
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 .018 5.393 0 12.03c0 2.123.544 4.197 1.582 6.075L0 24l6.135-1.61a11.803 11.803 0 005.911 1.586h.005c6.632 0 12.028-5.396 12.033-12.034a11.82 11.82 0 00-3.48-8.504z"/>
   </svg>
 );
-import { portfolioService } from "./services/portfolioService";
+
 import { PortfolioData, Project, Skill, BlogPost, Research, Message, Profile, DynamicPage } from "./types";
 
 // --- Components ---
 
 const Navbar = ({ 
-  onAdminClick, 
-  isAdmin, 
   pages = [],
   platform
 }: { 
-  onAdminClick: () => void, 
-  isAdmin: boolean,
   pages?: DynamicPage[],
   platform?: PortfolioData["platform"]
 }) => {
@@ -128,12 +131,6 @@ const Navbar = ({
               </Link>
             )
           ))}
-          <button 
-            onClick={onAdminClick}
-            className="p-2 border border-cyber-neon/30 rounded-full hover:bg-cyber-neon/10 transition-all"
-          >
-            {isAdmin ? <LayoutDashboard size={18} className="text-cyber-neon" /> : <Lock size={18} className="text-cyber-neon" />}
-          </button>
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -173,12 +170,6 @@ const Navbar = ({
                   </Link>
                 )
               ))}
-              <button 
-                onClick={() => { onAdminClick(); setIsMobileMenuOpen(false); }}
-                className="flex items-center gap-2 text-cyber-neon font-mono uppercase tracking-widest"
-              >
-                {isAdmin ? <LayoutDashboard size={18} /> : <Lock size={18} />} {isAdmin ? "Dashboard" : "Admin Access"}
-              </button>
             </div>
           </motion.div>
         )}
@@ -489,8 +480,7 @@ export default function App() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [editingItem, setEditingItem] = useState<{ type: string, data: any } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -498,6 +488,21 @@ export default function App() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [notification, setNotification] = useState<{ message: string, type: "success" | "error" } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ type: any, id: string } | null>(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.pathname === "/weba") {
+      setIsAdminMode(true);
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
 
   const showNotification = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
@@ -512,8 +517,53 @@ export default function App() {
   }, [editingItem]);
 
   useEffect(() => {
-    fetchData();
+    // Listen for Auth changes
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+
+    // Listen for Firestore changes
+    const unsubscribeData = onSnapshot(doc(db, "system/data"), (docSnap) => {
+      if (docSnap.exists()) {
+        setData(docSnap.data() as PortfolioData);
+        setLoading(false);
+      } else {
+        // If no data, we'll wait for admin to login to seed
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error("Firestore error:", error);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeData();
+    };
   }, []);
+
+  useEffect(() => {
+    // If data is missing and user is admin, we can show a button to seed
+    // instead of automatic seeding which might have race conditions
+  }, [loading, data, user]);
+
+  const seedInitialData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/data.json");
+      if (response.ok) {
+        const initialData = await response.json();
+        await portfolioService.updateData(initialData);
+        setData(initialData);
+        showNotification("Database Initialized Successfully");
+      }
+    } catch (error) {
+      console.error("Error seeding data:", error);
+      showNotification("Failed to initialize database", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (data?.platform?.name) {
@@ -521,31 +571,71 @@ export default function App() {
     }
   }, [data?.platform?.name]);
 
-  const fetchData = async () => {
+  const handleLogin = async () => {
+    if (isAuthenticating) return;
+    
+    setIsAuthenticating(true);
     try {
-      const result = await portfolioService.getData();
-      setData(result);
-    } catch (error) {
-      console.error(error);
+      const loggedInUser = await loginWithGoogle();
+      if (loggedInUser.email === "shaloomoficial250@gmail.com") {
+        showNotification("Access Granted: Secure Session Initialized");
+      } else {
+        showNotification("Access Denied: Unauthorized Personnel", "error");
+        await logout();
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.code === "auth/popup-blocked") {
+        showNotification("Popup Blocked: Please enable popups for this site", "error");
+      } else if (error.code === "auth/cancelled-popup-request") {
+        // Ignore user cancellation
+      } else if (error.message?.includes("INTERNAL ASSERTION FAILED")) {
+        showNotification("System Error: Please refresh and try again", "error");
+      } else {
+        showNotification("Authentication Failed", "error");
+      }
     } finally {
-      setLoading(false);
+      setIsAuthenticating(false);
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (data && password === data.admin.passwordHash) {
-      setIsLoggedIn(true);
-      showNotification("Access Granted: Secure Session Initialized");
-    } else {
-      showNotification("Access Denied: Invalid Credentials", "error");
+    if (isAuthenticating) return;
+    
+    setIsAuthenticating(true);
+    try {
+      const loggedInUser = await loginWithEmail(loginEmail, loginPassword);
+      if (loggedInUser.email === "shaloomoficial250@gmail.com") {
+        showNotification("Access Granted: Secure Session Initialized");
+      } else {
+        showNotification("Access Denied: Unauthorized Personnel", "error");
+        await logout();
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+        showNotification("Invalid Credentials", "error");
+      } else if (error.code === "auth/operation-not-allowed") {
+        showNotification("Email/Password login is not enabled in Firebase Console", "error");
+      } else {
+        showNotification("Authentication Failed", "error");
+      }
+    } finally {
+      setIsAuthenticating(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setIsAdminMode(false);
+    showNotification("Session Terminated");
   };
 
   const handleUpdate = async (newData: PortfolioData) => {
     try {
-      await portfolioService.updateData(newData, "cyber-secret-token");
-      setData(newData);
+      await portfolioService.updateData(newData);
+      // Data will be updated via onSnapshot
       return true;
     } catch (error) {
       showNotification("Update Failed: Security Breach Detected", "error");
@@ -685,7 +775,7 @@ export default function App() {
 
   // --- Admin View ---
   if (isAdminMode) {
-    if (!isLoggedIn) {
+    if (!user || user.email !== "shaloomoficial250@gmail.com") {
       return (
         <div className="min-h-screen flex items-center justify-center bg-cyber-bg p-6 grid-background">
           <MatrixBackground />
@@ -700,26 +790,122 @@ export default function App() {
               </div>
             </div>
             <h2 className="text-2xl font-mono text-center mb-6">ADMIN AUTHENTICATION</h2>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-gray-500 uppercase mb-1">Access Key</label>
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="cyber-input w-full" 
-                  placeholder="••••••••"
-                />
+            <p className="text-gray-400 text-center font-mono text-sm mb-8">Identity verification required for secure terminal access.</p>
+            
+            {!showPasswordLogin ? (
+              <div className="space-y-4">
+                <button
+                  onClick={handleLogin}
+                  disabled={isAuthenticating}
+                  className="cyber-button w-full flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAuthenticating ? (
+                    <RefreshCw size={20} className="animate-spin" />
+                  ) : (
+                    <LogIn size={20} />
+                  )}
+                  {isAuthenticating ? "Verifying..." : "Sign in with Google"}
+                </button>
+                
+                <button
+                  onClick={() => setShowPasswordLogin(true)}
+                  className="w-full text-xs font-mono text-cyber-neon hover:underline transition-colors"
+                >
+                  Use Password Authentication
+                </button>
               </div>
-              <button type="submit" className="cyber-button w-full mt-4">Initialize Session</button>
-              <button 
-                type="button" 
-                onClick={() => setIsAdminMode(false)}
-                className="w-full text-xs font-mono text-gray-500 hover:text-white transition-colors"
-              >
-                Return to Public Interface
-              </button>
-            </form>
+            ) : (
+              <form onSubmit={handleEmailLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-mono text-gray-500 uppercase">Email</label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="cyber-input w-full"
+                    placeholder="admin@terminal.core"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-mono text-gray-500 uppercase">Password</label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="cyber-input w-full"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isAuthenticating}
+                  className="cyber-button w-full flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAuthenticating ? (
+                    <RefreshCw size={20} className="animate-spin" />
+                  ) : (
+                    <Lock size={20} />
+                  )}
+                  {isAuthenticating ? "Authenticating..." : "Login with Password"}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordLogin(false)}
+                  className="w-full text-xs font-mono text-cyber-neon hover:underline transition-colors"
+                >
+                  Back to Google Sign-in
+                </button>
+              </form>
+            )}
+            
+            <button 
+              type="button" 
+              onClick={() => setIsAdminMode(false)}
+              className="w-full mt-6 text-xs font-mono text-gray-500 hover:text-white transition-colors"
+            >
+              Return to Public Interface
+            </button>
+          </motion.div>
+        </div>
+      );
+    }
+
+    if (!data) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-cyber-bg p-6 grid-background">
+          <MatrixBackground />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="cyber-card max-w-md w-full relative z-10 text-center"
+          >
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-cyber-neon/10 rounded-full">
+                <Database className="text-cyber-neon" size={48} />
+              </div>
+            </div>
+            <h2 className="text-2xl font-mono mb-4">DATABASE NOT INITIALIZED</h2>
+            <p className="text-gray-400 font-mono text-sm mb-8">
+              System data is missing from Firestore. Initialize the database using the local configuration?
+            </p>
+            <button
+              onClick={seedInitialData}
+              disabled={loading}
+              className="cyber-button w-full flex items-center justify-center gap-3"
+            >
+              <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+              {loading ? "Initializing..." : "Initialize Database"}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setIsAdminMode(false)}
+              className="w-full mt-6 text-xs font-mono text-gray-500 hover:text-white transition-colors"
+            >
+              Return to Public Interface
+            </button>
           </motion.div>
         </div>
       );
@@ -760,7 +946,7 @@ export default function App() {
 
           <div className="mt-auto">
             <button 
-              onClick={() => { setIsLoggedIn(false); setIsAdminMode(false); }}
+              onClick={handleLogout}
               className="flex items-center gap-3 px-4 py-3 text-red-500 font-mono text-sm hover:bg-red-500/10 w-full transition-all"
             >
               <LogOut size={18} />
@@ -1475,7 +1661,7 @@ export default function App() {
       <MatrixBackground />
       <FloatingHacker src={data.profile.hackerImage} fallback={data.profile.avatar} />
       <div className="scanline"></div>
-      <Navbar onAdminClick={() => setIsAdminMode(true)} isAdmin={isLoggedIn} pages={data.pages} platform={data.platform} />
+      <Navbar pages={data.pages} platform={data.platform} />
 
       <Routes>
         <Route path="/" element={
@@ -1732,7 +1918,8 @@ export default function App() {
                     <form className="cyber-card space-y-4" onSubmit={(e) => {
                       e.preventDefault();
                       const formData = new FormData(e.currentTarget);
-                      portfolioService.sendMessage(Object.fromEntries(formData))
+                      const messageData = Object.fromEntries(formData) as any;
+                      portfolioService.sendMessage(messageData)
                         .then(() => showNotification("Transmission Received: Message Sent Successfully"))
                         .catch(() => showNotification("Transmission Failed: Connection Error", "error"));
                       (e.target as HTMLFormElement).reset();

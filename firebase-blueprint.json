@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "PortfolioData": {
+      "title": "Portfolio Data",
+      "description": "The main data structure for the portfolio",
+      "type": "object",
+      "properties": {
+        "profile": { "type": "object" },
+        "skills": { "type": "array" },
+        "projects": { "type": "array" },
+        "blog": { "type": "array" },
+        "research": { "type": "array" },
+        "messages": { "type": "array" },
+        "pages": { "type": "array" },
+        "settings": { "type": "object" },
+        "platform": { "type": "object" }
+      }
+    },
+    "Message": {
+      "title": "Contact Message",
+      "description": "A message sent via the contact form",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/system/data": {
+      "schema": "PortfolioData",
+      "description": "Global portfolio configuration and content"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Individual contact messages"
+    }
+  }
+}
