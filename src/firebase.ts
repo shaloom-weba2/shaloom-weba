@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -45,3 +45,18 @@ export const loginWithEmail = async (email: string, pass: string) => {
 };
 
 export const logout = () => signOut(auth);
+
+export const testFirestoreConnection = async () => {
+  try {
+    // Attempt to read a non-existent doc from server to test connection
+    await getDocFromServer(doc(db, 'system', 'connection_test'));
+    return { success: true };
+  } catch (error: any) {
+    console.error("Firestore connection test failed:", error);
+    return { 
+      success: false, 
+      error: error.message,
+      isOffline: error.message?.includes('offline') || error.code === 'unavailable'
+    };
+  }
+};

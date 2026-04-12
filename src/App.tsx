@@ -41,10 +41,11 @@ import {
   ExternalLink as ExternalLinkIcon,
   LogIn,
   Database,
-  RefreshCw
+  RefreshCw,
+  ShieldAlert
 } from "lucide-react";
 
-import { auth, loginWithGoogle, loginWithEmail, logout, db } from "./firebase";
+import { auth, loginWithGoogle, loginWithEmail, logout, db, testFirestoreConnection } from "./firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { onSnapshot, doc } from "firebase/firestore";
 import { portfolioService } from "./services/portfolioService";
@@ -488,6 +489,7 @@ export default function App() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [notification, setNotification] = useState<{ message: string, type: "success" | "error" } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ type: any, id: string } | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -526,6 +528,7 @@ export default function App() {
     const unsubscribeData = onSnapshot(doc(db, "system/data"), (docSnap) => {
       if (docSnap.exists()) {
         setData(docSnap.data() as PortfolioData);
+        setConnectionError(null);
         setLoading(false);
       } else {
         // If no data, we'll wait for admin to login to seed
@@ -533,6 +536,7 @@ export default function App() {
       }
     }, (error) => {
       console.error("Firestore error:", error);
+      setConnectionError(error.message);
       setLoading(false);
     });
 
@@ -771,7 +775,58 @@ export default function App() {
     );
   }
 
-  if (!data) return <div>Error loading system data.</div>;
+  if (!data) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-cyber-bg p-6 grid-background relative overflow-hidden">
+        <MatrixBackground />
+        <div className="scanline"></div>
+        
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="cyber-card max-w-lg w-full relative z-10 text-center border-cyber-pink/30"
+        >
+          <div className="flex justify-center mb-6">
+            <div className="p-4 bg-cyber-pink/10 rounded-full">
+              <ShieldAlert className="text-cyber-pink" size={48} />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-mono mb-4 text-cyber-pink">SYSTEM_OFFLINE</h2>
+          
+          <div className="bg-black/60 p-4 rounded border border-cyber-pink/20 mb-8 text-left font-mono text-xs space-y-2">
+            <p className="text-gray-500"># DIAGNOSTIC_REPORT</p>
+            <p className="text-white">STATUS: <span className="text-cyber-pink">DATA_UNREACHABLE</span></p>
+            <p className="text-white">SOURCE: <span className="text-gray-400">FIRESTORE_CORE</span></p>
+            {connectionError && (
+              <p className="text-cyber-pink mt-2">ERROR: {connectionError}</p>
+            )}
+            <p className="text-gray-500 mt-4">// POSSIBLE_CAUSES:</p>
+            <ul className="list-disc list-inside text-gray-400 space-y-1">
+              <li>Database not initialized</li>
+              <li>Missing Firebase configuration</li>
+              <li>Network connectivity issues</li>
+              <li>Unauthorized domain (Vercel)</li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="cyber-button w-full flex items-center justify-center gap-3"
+            >
+              <RefreshCw size={20} />
+              Retry Connection
+            </button>
+            
+            <p className="text-[10px] text-gray-600 font-mono">
+              ADMIN_ACCESS: Navigate to <span className="text-cyber-neon">/weba</span> to initialize system.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   // --- Admin View ---
   if (isAdminMode) {
