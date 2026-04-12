@@ -10,11 +10,12 @@
   --color-cyber-pink: #ff00e5;
   --color-cyber-green: #00ff41;
   --color-cyber-border: rgba(0, 242, 255, 0.1);
+  --color-cyber-glass: rgba(10, 10, 10, 0.7);
 }
 
 @layer base {
   body {
-    @apply bg-cyber-bg text-gray-300 font-sans selection:bg-cyber-neon selection:text-black;
+    @apply bg-cyber-bg text-gray-300 font-sans selection:bg-cyber-neon selection:text-black overflow-x-hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -24,15 +25,34 @@
 
 @layer components {
   .cyber-button {
-    @apply relative px-6 py-2 bg-transparent border border-cyber-neon text-cyber-neon font-mono uppercase tracking-widest overflow-hidden transition-all duration-300 hover:bg-cyber-neon hover:text-black hover:shadow-[0_0_20px_rgba(0,242,255,0.5)];
+    @apply relative px-6 py-2 bg-transparent border border-cyber-neon text-cyber-neon font-mono uppercase tracking-widest overflow-hidden transition-all duration-300 hover:bg-cyber-neon hover:text-black hover:shadow-[0_0_20px_rgba(0,242,255,0.5)] active:scale-95;
   }
 
   .cyber-card {
-    @apply bg-cyber-card border border-cyber-border p-6 rounded-sm relative overflow-hidden transition-all duration-300 hover:border-cyber-neon/30 hover:shadow-[0_0_30px_rgba(0,242,255,0.05)];
+    @apply bg-cyber-glass backdrop-blur-md border border-cyber-border p-6 rounded-sm relative overflow-hidden transition-all duration-500 hover:border-cyber-neon/40 hover:shadow-[0_0_40px_rgba(0,242,255,0.1)];
+  }
+
+  .cyber-card::before {
+    content: '';
+    @apply absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyber-neon/30 to-transparent;
+    animation: scanline-horizontal 3s linear infinite;
+  }
+
+  @keyframes scanline-horizontal {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
   }
 
   .cyber-input {
-    @apply bg-black/50 border border-cyber-border px-4 py-2 text-white font-mono focus:outline-none focus:border-cyber-neon focus:ring-1 focus:ring-cyber-neon/50 transition-all;
+    @apply bg-black/40 backdrop-blur-sm border border-cyber-border px-4 py-2 text-white font-mono focus:outline-none focus:border-cyber-neon focus:ring-1 focus:ring-cyber-neon/50 transition-all;
+  }
+
+  .neon-glow {
+    @apply shadow-[0_0_15px_rgba(0,242,255,0.3)];
+  }
+
+  .neon-glow-pink {
+    @apply shadow-[0_0_15px_rgba(255,0,229,0.3)];
   }
 
   .neon-text {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { Routes, Route, Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import Editor from "react-simple-code-editor";
 // @ts-ignore
@@ -49,6 +49,7 @@ import { auth, loginWithGoogle, loginWithEmail, logout, db, testFirestoreConnect
 import { onAuthStateChanged, User } from "firebase/auth";
 import { onSnapshot, doc } from "firebase/firestore";
 import { portfolioService } from "./services/portfolioService";
+import CyberBackground3D from "./components/CyberBackground3D";
 const WhatsAppIcon = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
   <svg 
     viewBox="0 0 24 24" 
@@ -189,6 +190,45 @@ const SectionHeading = ({ title, subtitle }: { title: string, subtitle: string }
   </div>
 );
 
+const TiltCard = ({ children, className = "" }: { children: React.ReactNode, className?: string, key?: React.Key }) => {
+  const [rotate, setRotate] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    const box = card.getBoundingClientRect();
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    const centerX = box.width / 2;
+    const centerY = box.height / 2;
+    const rotateX = (y - centerY) / 10;
+    const rotateY = (centerX - x) / 10;
+
+    setRotate({ x: rotateX, y: rotateY });
+  };
+
+  const handleMouseLeave = () => {
+    setRotate({ x: 0, y: 0 });
+  };
+
+  return (
+    <motion.div
+      className={className}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      animate={{
+        rotateX: rotate.x,
+        rotateY: rotate.y,
+      }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      style={{ transformStyle: "preserve-3d" }}
+    >
+      <div style={{ transform: "translateZ(50px)", transformStyle: "preserve-3d" }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
+
 const MatrixBackground = () => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -249,21 +289,37 @@ const MatrixBackground = () => {
 };
 
 const FloatingHacker = ({ src, fallback }: { src: string, fallback?: string }) => {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 20;
+      const y = (e.clientY / window.innerHeight - 0.5) * 20;
+      setMousePos({ x, y });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
   return (
     <motion.div
       className="fixed top-24 right-6 z-40 w-24 h-24 md:w-32 md:h-32 pointer-events-none"
-      initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
+      initial={{ opacity: 0, scale: 0.5 }}
       animate={{ 
         opacity: [0.4, 0.8, 0.4],
         scale: [1, 1.05, 1],
-        rotate: [-2, 2, -2],
+        rotateX: -mousePos.y,
+        rotateY: mousePos.x,
         y: [0, -10, 0]
       }}
       transition={{ 
         duration: 5, 
         repeat: Infinity, 
-        ease: "easeInOut" 
+        ease: "easeInOut",
+        rotateX: { type: "spring", stiffness: 100 },
+        rotateY: { type: "spring", stiffness: 100 }
       }}
+      style={{ transformStyle: "preserve-3d" }}
     >
       <div className="relative w-full h-full">
         {/* Glowing border */}
@@ -493,6 +549,11 @@ export default function App() {
 
   const location = useLocation();
   const navigate = useNavigate();
+
+  const { scrollY } = useScroll();
+  const y1 = useTransform(scrollY, [0, 500], [0, 200]);
+  const y2 = useTransform(scrollY, [0, 500], [0, -150]);
+  const opacity = useTransform(scrollY, [0, 300], [1, 0]);
 
   useEffect(() => {
     if (location.pathname === "/weba") {
@@ -1713,6 +1774,7 @@ export default function App() {
   // --- Public View ---
   return (
     <div className="relative min-h-screen">
+      <CyberBackground3D />
       <MatrixBackground />
       <FloatingHacker src={data.profile.hackerImage} fallback={data.profile.avatar} />
       <div className="scanline"></div>
@@ -1724,13 +1786,17 @@ export default function App() {
             {/* Hero Section */}
             {data.settings.showHero && (
               <section className="min-h-screen flex items-center justify-center pt-20 px-6 relative overflow-hidden grid-background">
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyber-bg/50 to-cyber-bg"></div>
+                <motion.div 
+                  style={{ y: y1, opacity }}
+                  className="absolute inset-0 bg-gradient-to-b from-transparent via-cyber-bg/50 to-cyber-bg"
+                ></motion.div>
                 
                 <div className="max-w-7xl mx-auto w-full relative z-10 text-center">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8 }}
+                    style={{ y: y2 }}
                   >
                     <span className="text-cyber-neon font-mono text-sm tracking-[0.5em] uppercase mb-4 block">System Online</span>
                     <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tighter">
@@ -1854,14 +1920,14 @@ export default function App() {
                   <SectionHeading title="Featured Deployments" subtitle="Portfolio" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {data.projects.map((project, idx) => (
-                      <motion.div 
-                        key={project.id}
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: idx * 0.1 }}
-                        className="cyber-feature-card group"
-                      >
+                      <TiltCard key={project.id}>
+                        <motion.div 
+                          initial={{ opacity: 0, y: 30 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="cyber-card group h-full"
+                        >
                         <div className="relative h-64 mb-6 overflow-hidden">
                           <img 
                             src={project.image || undefined} 
@@ -1882,7 +1948,8 @@ export default function App() {
                           ))}
                         </div>
                       </motion.div>
-                    ))}
+                    </TiltCard>
+                  ))}
                   </div>
                 </div>
               </section>
@@ -1895,13 +1962,15 @@ export default function App() {
                   <SectionHeading title="Security Research" subtitle="Intelligence" />
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {data.research.map((item) => (
-                      <div key={item.id} className="cyber-feature-card border-l-4 border-l-cyber-pink">
-                        <h3 className="text-xl font-bold mb-3">{item.title}</h3>
-                        <p className="text-sm text-gray-400 mb-4">{item.description}</p>
-                        <a href={item.link} className="text-cyber-pink font-mono text-xs uppercase tracking-widest flex items-center gap-2 hover:gap-4 transition-all">
-                          Access Report <ChevronRight size={14} />
-                        </a>
-                      </div>
+                      <TiltCard key={item.id}>
+                        <div className="cyber-card border-l-4 border-l-cyber-pink h-full">
+                          <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                          <p className="text-sm text-gray-400 mb-4">{item.description}</p>
+                          <a href={item.link} className="text-cyber-pink font-mono text-xs uppercase tracking-widest flex items-center gap-2 hover:gap-4 transition-all">
+                            Access Report <ChevronRight size={14} />
+                          </a>
+                        </div>
+                      </TiltCard>
                     ))}
                   </div>
                 </div>
